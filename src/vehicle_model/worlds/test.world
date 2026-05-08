@@ -1,0 +1,78 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="hybrid_astar_test_world">
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- 光照 -->
+    <light name="sun" type="directional">
+      <pose>0 0 10 0 -0 0</pose>
+    </light>
+
+    <!-- 障碍物: 几个箱子形成简单的测试场景 -->
+    <model name="obstacle_1">
+      <pose>5 0 0.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1 1 1</size></box></geometry>
+        </visual>
+        <collision name="collision">
+          <geometry><box><size>1 1 1</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="obstacle_2">
+      <pose>8 2 0.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1 1 1</size></box></geometry>
+        </visual>
+        <collision name="collision">
+          <geometry><box><size>1 1 1</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="obstacle_3">
+      <pose>8 -2 0.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>1 1 1</size></box></geometry>
+        </visual>
+        <collision name="collision">
+          <geometry><box><size>1 1 1</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="wall_top">
+      <pose>10 5 1.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>20 0.3 3</size></box></geometry>
+        </visual>
+        <collision name="collision">
+          <geometry><box><size>20 0.3 3</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="wall_bottom">
+      <pose>10 -5 1.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>20 0.3 3</size></box></geometry>
+        </visual>
+        <collision name="collision">
+          <geometry><box><size>20 0.3 3</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+  </world>
+</sdf>

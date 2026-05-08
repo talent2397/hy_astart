@@ -1,0 +1,22 @@
+# Pure Pursuit / MPC 跟踪器配置
+tracker:
+  lookahead_distance: 3.0           # 前视距离 (m)
+  target_velocity: 1.0              # 目标速度 (m/s)
+  max_steering: 0.6                 # 最大转向角 (rad)
+  wheel_base: 2.0                   # 轴距 (m)
+  goal_tolerance_xy: 0.2            # 到达判定距离 (m)
+  goal_tolerance_theta: 0.1         # 到达判定角度 (rad)
+  kp_velocity: 0.5                  # 速度 P 控制增益
+
+# MPC 参数 (后续升级使用)
+mpc:
+  horizon_length: 20
+  dt: 0.05
+  max_velocity: 3.0
+  max_acceleration: 1.0
+  Q_x: 10.0
+  Q_y: 10.0
+  Q_theta: 5.0
+  Q_v: 1.0
+  R_a: 0.1
+  R_delta: 1.0

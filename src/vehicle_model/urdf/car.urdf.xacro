@@ -1,0 +1,178 @@
+<?xml version="1.0"?>
+<robot name="car" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- ===== 基础参数 ===== -->
+    <xacro:property name="wheelbase" value="2.0"/>
+    <xacro:property name="track_width" value="1.5"/>
+    <xacro:property name="wheel_radius" value="0.35"/>
+    <xacro:property name="body_length" value="4.7"/>
+    <xacro:property name="body_width" value="2.0"/>
+    <xacro:property name="body_height" value="0.5"/>
+    <xacro:property name="mass" value="1500"/>
+
+    <!-- ===== 颜色 ===== -->
+    <material name="black"><color rgba="0.0 0.0 0.0 1.0"/></material>
+    <material name="blue"><color rgba="0.0 0.0 1.0 1.0"/></material>
+    <material name="red"><color rgba="1.0 0.0 0.0 1.0"/></material>
+
+    <!-- ===== 车身 ===== -->
+    <link name="base_link">
+        <inertial>
+            <origin xyz="0 0 0.2" rpy="0 0 0"/>
+            <mass value="${mass}"/>
+            <inertia ixx="500" ixy="0" ixz="0" iyy="800" iyz="0" izz="800"/>
+        </inertial>
+
+        <visual>
+            <origin xyz="0.4 0 0.1" rpy="0 0 0"/>
+            <geometry>
+                <box size="${body_length} ${body_width} ${body_height}"/>
+            </geometry>
+            <material name="blue"/>
+        </visual>
+
+        <collision>
+            <origin xyz="0.4 0 0.1" rpy="0 0 0"/>
+            <geometry>
+                <box size="${body_length} ${body_width} ${body_height}"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <!-- ===== 前左轮 ===== -->
+    <link name="front_left_wheel">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="20"/>
+            <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+        </inertial>
+        <visual>
+            <geometry>
+                <cylinder radius="${wheel_radius}" length="0.2"/>
+            </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry>
+                <cylinder radius="${wheel_radius}" length="0.2"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <!-- 前左转向关节 -->
+    <joint name="front_left_steering_joint" type="revolute">
+        <parent link="base_link"/>
+        <child link="front_left_wheel"/>
+        <origin xyz="${wheelbase/2} ${track_width/2} -0.15" rpy="0 0 0"/>
+        <axis xyz="0 0 1"/>
+        <limit lower="-0.6" upper="0.6" effort="100" velocity="10"/>
+    </joint>
+
+    <!-- ===== 前右轮 ===== -->
+    <link name="front_right_wheel">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="20"/>
+            <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+        </inertial>
+        <visual>
+            <geometry>
+                <cylinder radius="${wheel_radius}" length="0.2"/>
+            </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry>
+                <cylinder radius="${wheel_radius}" length="0.2"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <joint name="front_right_steering_joint" type="revolute">
+        <parent link="base_link"/>
+        <child link="front_right_wheel"/>
+        <origin xyz="${wheelbase/2} ${-track_width/2} -0.15" rpy="0 0 0"/>
+        <axis xyz="0 0 1"/>
+        <limit lower="-0.6" upper="0.6" effort="100" velocity="10"/>
+    </joint>
+
+    <!-- ===== 后左轮 ===== -->
+    <link name="rear_left_wheel">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="20"/>
+            <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+        </inertial>
+        <visual>
+            <geometry>
+                <cylinder radius="${wheel_radius}" length="0.2"/>
+            </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry>
+                <cylinder radius="${wheel_radius}" length="0.2"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <joint name="rear_left_wheel_joint" type="continuous">
+        <parent link="base_link"/>
+        <child link="rear_left_wheel"/>
+        <origin xyz="${-wheelbase/2} ${track_width/2} -0.15" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+    </joint>
+
+    <!-- ===== 后右轮 ===== -->
+    <link name="rear_right_wheel">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="20"/>
+            <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+        </inertial>
+        <visual>
+            <geometry>
+                <cylinder radius="${wheel_radius}" length="0.2"/>
+            </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry>
+                <cylinder radius="${wheel_radius}" length="0.2"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <joint name="rear_right_wheel_joint" type="continuous">
+        <parent link="base_link"/>
+        <child link="rear_right_wheel"/>
+        <origin xyz="${-wheelbase/2} ${-track_width/2} -0.15" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+    </joint>
+
+    <!-- ===== Gazebo 插件 ===== -->
+    <gazebo>
+        <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
+            <robotNamespace>/car</robotNamespace>
+        </plugin>
+    </gazebo>
+
+    <!-- 差速驱动插件（简化为 skid steering） -->
+    <gazebo>
+        <plugin name="car_drive" filename="libgazebo_ros_skid_steer_drive.so">
+            <updateRate>100.0</updateRate>
+            <robotNamespace>/car</robotNamespace>
+            <leftFrontJoint>front_left_wheel</leftFrontJoint>
+            <rightFrontJoint>front_right_wheel</rightFrontJoint>
+            <leftRearJoint>rear_left_wheel_joint</leftRearJoint>
+            <rightRearJoint>rear_right_wheel_joint</rightRearJoint>
+            <wheelSeparation>${track_width}</wheelSeparation>
+            <wheelDiameter>${wheel_radius * 2}</wheelDiameter>
+            <torque>20</torque>
+            <commandTopic>cmd_vel</commandTopic>
+            <odometryTopic>odom</odometryTopic>
+            <odometryFrame>odom</odometryFrame>
+            <robotBaseFrame>base_link</robotBaseFrame>
+        </plugin>
+    </gazebo>
+</robot>

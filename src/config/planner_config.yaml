@@ -1,0 +1,14 @@
+# Hybrid A* 规划器配置
+planner:
+  steering_angle: 15.0              # 转向角 (degrees)
+  steering_angle_discrete_num: 1    # 转向离散数
+  wheel_base: 2.0                   # 轴距 (m)
+  segment_length: 1.6               # 搜索段长度 (m)
+  segment_length_discrete_num: 8    # 段离散数
+  steering_penalty: 1.5             # 转向惩罚
+  reversing_penalty: 3.0            # 倒车惩罚
+  steering_change_penalty: 2.0      # 转向变化惩罚
+  shot_distance: 5.0                # RS 曲线触发距离 (m)
+  grid_size_phi: 72                 # 角度离散数
+  state_grid_resolution: 1.0        # 状态网格分辨率 (m)
+  thread_pool_size: 4               # 线程池大小
