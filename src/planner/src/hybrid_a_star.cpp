@@ -55,7 +55,7 @@ void HybridAStar::Init(double x_lower, double x_upper, double y_lower, double y_
         delete[] map_data_;
         map_data_ = nullptr;
     }
-    map_data_ = new uint8_t[MAP_GRID_SIZE_X_ * MAP_GRID_SIZE_Y_];
+    map_data_ = new uint8_t[MAP_GRID_SIZE_X_ * MAP_GRID_SIZE_Y_]();  // value-init to zero
 
     if (state_node_map_) {
         for (int i = 0; i < STATE_GRID_SIZE_X_; ++i) {
@@ -107,11 +107,13 @@ bool HybridAStar::LineCheck(double x0, double y0, double x1, double y1) {
     for (unsigned int i = 0; i < N; ++i) {
         if (steep) {
             if (HasObstacle(Vec2i(yk, x0 + i * 1.0)) ||
-                BeyondBoundary(Vec2d(yk * MAP_GRID_RESOLUTION_, (x0 + i) * MAP_GRID_RESOLUTION_)))
+                BeyondBoundary(Vec2d(yk * MAP_GRID_RESOLUTION_ + map_x_lower_,
+                                     (x0 + i) * MAP_GRID_RESOLUTION_ + map_y_lower_)))
                 return false;
         } else {
             if (HasObstacle(Vec2i(x0 + i * 1.0, yk)) ||
-                BeyondBoundary(Vec2d((x0 + i) * MAP_GRID_RESOLUTION_, yk * MAP_GRID_RESOLUTION_)))
+                BeyondBoundary(Vec2d((x0 + i) * MAP_GRID_RESOLUTION_ + map_x_lower_,
+                                     yk * MAP_GRID_RESOLUTION_ + map_y_lower_)))
                 return false;
         }
         error += delta_error;
@@ -350,6 +352,13 @@ bool HybridAStar::Search(const Vec3d& start_state, const Vec3d& goal_state) {
     const Vec3i start_grid_index = State2Index(start_state);
     const Vec3i goal_grid_index = State2Index(goal_state);
 
+    VLOG(1) << "Search start: state=(" << start_state.transpose()
+            << ") grid=(" << start_grid_index.transpose() << ")"
+            << " goal=(" << goal_state.transpose()
+            << ") grid=(" << goal_grid_index.transpose() << ")"
+            << " grid_sizes=" << STATE_GRID_SIZE_X_ << "x" << STATE_GRID_SIZE_Y_
+            << "x" << STATE_GRID_SIZE_PHI_;
+
     auto goal_node_ptr = new StateNode(goal_grid_index);
     goal_node_ptr->state_ = goal_state;
     goal_node_ptr->direction_ = StateNode::NO;
@@ -380,7 +389,8 @@ bool HybridAStar::Search(const Vec3d& start_state, const Vec3d& goal_state) {
         current_node_ptr->node_status_ = StateNode::IN_CLOSESET;
         openset_.erase(openset_.begin());
 
-        if ((current_node_ptr->state_.head(2) - goal_node_ptr->state_.head(2)).norm() <= shot_distance_) {
+        double dist_to_goal = (current_node_ptr->state_.head(2) - goal_node_ptr->state_.head(2)).norm();
+        if (dist_to_goal <= shot_distance_) {
             double rs_length = 0.0;
             if (AnalyticExpansions(current_node_ptr, goal_node_ptr, rs_length)) {
                 terminal_node_ptr_ = goal_node_ptr;

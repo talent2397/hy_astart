@@ -63,35 +63,76 @@ int main(int argc, char* argv[]) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
+    // 等待并打开 map SHM（需要先读取 header 获得 width/height 才能知道完整大小）
+    LOG(INFO) << "Waiting for map SHM...";
+    while (g_running && !map_reader.Open(SHM_MAP_DATA, sizeof(MapShmHeader))) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    // 读取 header 获取地图尺寸，然后重新打开完整 SHM
+    MapShmHeader temp_header;
+    while (g_running && !map_reader.ReadLatest(temp_header)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    size_t map_total_size = sizeof(MapShmHeader) + temp_header.width * temp_header.height;
+    map_reader.Close();  // 关闭旧的，重新以完整大小打开
+    while (g_running && !map_reader.Open(SHM_MAP_DATA, map_total_size)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    LOG(INFO) << "Map SHM opened: " << temp_header.width << "x" << temp_header.height
+              << " total=" << map_total_size << " bytes";
+
     // 创建路径 SHM
     if (!path_writer.Open(SHM_PLANNER_PATH)) {
         LOG(FATAL) << "Failed to create planner_path SHM";
         return 1;
     }
 
-    // 创建消息队列
+    // 创建消息队列（PATH_READY 用于通知 Tracker；REPLAN_REQUEST 供外部请求重规划）
     if (!mq_planner_to_tracker.Create(MQ_PATH_READY)) {
-        LOG(FATAL) << "Failed to create message queue";
+        LOG(FATAL) << "Failed to create PATH_READY MQ";
+        return 1;
+    }
+    MessageQueue<IPCMessage> mq_replan;
+    if (!mq_replan.Create(MQ_REPLAN_REQUEST)) {
+        LOG(FATAL) << "Failed to create REPLAN_REQUEST MQ";
         return 1;
     }
 
     LOG(INFO) << "IPC channels ready.";
 
-    // ---- 3. 主循环 (10Hz) ----
+    // ---- 3. 主循环前：加载地图（静态数据，只读一次）----
+    MapData map;
+    {
+        MapShmHeader map_header;
+        // 阻塞等待地图数据
+        while (g_running && !map_reader.ReadLatest(map_header)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        map.width = map_header.width;
+        map.height = map_header.height;
+        map.resolution = map_header.resolution;
+        map.origin_x = map_header.origin_x;
+        map.origin_y = map_header.origin_y;
+        const uint8_t* raw_data = map_reader.GetRaw() + sizeof(MapShmHeader);
+        map.data.assign(raw_data, raw_data + map.width * map.height);
+        LOG(INFO) << "Map loaded into planner: " << map.width << "x" << map.height;
+    }
+
+    // ---- 4. 主循环 (10Hz) ----
     bool has_last_goal = false;
     GoalPoseData last_goal;
 
     while (g_running) {
         auto cycle_start = std::chrono::steady_clock::now();
 
-        // 3a. 读取车辆状态（作为起点）
+        // 4a. 读取车辆状态（作为起点）
         VehicleStateData vehicle;
         if (!vehicle_reader.ReadLatest(vehicle)) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             continue;
         }
 
-        // 3b. 读取目标位姿
+        // 4b. 读取目标位姿
         GoalPoseData goal;
         bool has_new_goal = goal_reader.ReadLatest(goal);
 
@@ -108,29 +149,6 @@ int main(int argc, char* argv[]) {
 
         if (!has_last_goal) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            continue;
-        }
-
-        // 3c. 读取地图（尝试）
-        MapData map;
-        if (map_reader.IsValid()) {
-            MapShmHeader map_header;
-            if (map_reader.ReadLatest(map_header)) {
-                map.width = map_header.width;
-                map.height = map_header.height;
-                map.resolution = map_header.resolution;
-                map.origin_x = map_header.origin_x;
-                map.origin_y = map_header.origin_y;
-                // 地图数据紧跟 header，从 mmap 区域偏移读取
-                uint8_t* raw_data = reinterpret_cast<uint8_t*>(&map_header) + sizeof(MapShmHeader);
-                map.data.assign(raw_data, raw_data + map.width * map.height);
-            }
-        }
-
-        // 如果地图为空，跳过（等待地图）
-        if (!map.IsValid()) {
-            LOG_FIRST_N(INFO, 5) << "Waiting for map data...";
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
             continue;
         }
 

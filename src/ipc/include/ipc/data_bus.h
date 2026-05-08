@@ -57,6 +57,12 @@ public:
         return shm_.Open(shm_name_, false);
     }
 
+    // 以指定映射大小打开（用于可变长度数据，如地图 header+grid）
+    bool Open(const std::string& shm_name, size_t map_size) {
+        shm_name_ = shm_name;
+        return shm_.Open(shm_name_, map_size, false);
+    }
+
     // 读取最新数据（检测 sequence 变化）
     bool ReadLatest(T& data) {
         if (!shm_.IsValid()) return false;
@@ -89,6 +95,12 @@ public:
 
     bool IsValid() const { return shm_.IsValid(); }
     const std::string& Name() const { return shm_name_; }
+
+    void Close() { shm_.Close(); last_sequence_ = 0; }
+
+    // 获取底层 SHM 的原始指针（用于可变长度数据，如地图 grid）
+    const uint8_t* GetRaw() const { return shm_.GetRaw(); }
+    const T* Get() const { return shm_.Get(); }
 
 private:
     std::string shm_name_;

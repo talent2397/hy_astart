@@ -56,9 +56,14 @@ int main(int argc, char* argv[]) {
 
     // 等待 planner_path SHM
     LOG(INFO) << "Waiting for planner_path SHM...";
+    int wait_count = 0;
     while (g_running && !path_reader.Open(SHM_PLANNER_PATH)) {
+        if (++wait_count % 4 == 0) {  // 每 2 秒打印一次
+            LOG(WARNING) << "Still waiting for planner_path SHM... (attempt " << wait_count << ")";
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
+    LOG(INFO) << "planner_path SHM opened successfully.";
 
     // 创建 control_cmd SHM
     if (!control_writer.Open(SHM_CONTROL_CMD)) {
