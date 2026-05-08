@@ -8,10 +8,17 @@
     <buildtool_depend>catkin</buildtool_depend>
     <build_depend>roscpp</build_depend>
     <build_depend>std_msgs</build_depend>
+    <!-- 编译时依赖的并行计算库 -->
+    <build_depend>libtbb-dev</build_depend>
+    <build_depend>libboost-all-dev</build_depend>
+    <build_depend>openmp</build_depend>
     <build_export_depend>roscpp</build_export_depend>
     <build_export_depend>std_msgs</build_export_depend>
     <exec_depend>roscpp</exec_depend>
     <exec_depend>std_msgs</exec_depend>
+    <!-- 运行时依赖 -->
+    <exec_depend>libtbb2</exec_depend>
+    <exec_depend>libboost-thread1.62.0</exec_depend>
     <export>
     </export>
 </package>

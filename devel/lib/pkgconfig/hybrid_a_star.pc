@@ -1,4 +1,4 @@
-prefix=/home/xiaoyubb/hybrid_a_star_ws/devel
+prefix=/home/xiaoyubb/hybrid_a_star/devel
 
 Name: hybrid_a_star
 Description: Description of hybrid_a_star

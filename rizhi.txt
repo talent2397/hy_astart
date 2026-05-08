@@ -1,0 +1,202 @@
+================================================================
+ Hybrid A* 调试日志
+================================================================
+
+[2026-05-08 19:17] 首次尝试运行 full_system.launch
+----------------------------------------------------------------
+问题1: Gazebo 崩溃 (Segmentation fault)
+  原因:
+    1. test.world 中 sun light 名称重复（include model://sun 包含了同名 light）
+    2. URDF 中 skid_steer_drive 插件引用的 joint 名不正确
+       - 插件引用: front_left_wheel, front_right_wheel
+       - 实际 joint 名: front_left_steering_joint, front_right_steering_joint
+       - front_left_wheel/front_right_wheel 是 link 名，不是 joint 名
+  修复:
+    - 移除 test.world 中重复的 <light name='sun'>
+    - 将 skid_steer_drive 改为 diff_drive 插件，驱动后轮
+    - 移除不需要的 gazebo_ros_control 插件
+    - diff_drive 不用 /car 命名空间 → 修改 bridge 订阅 /odom 和 /cmd_vel
+
+问题2: 死锁 (各进程互相等待)
+  原因: bridge 启动时阻塞等待 control_cmd SHM，但 control_cmd 由 tracker 创建，
+        tracker 又在等 bridge 的 vehicle_state 和 planner 的 planner_path
+  修复: bridge 改为非阻塞模式，进入 ControlLoop 后再尝试打开 control_cmd SHM
+
+问题3: 缺少 TF 变换
+  原因: diff_drive 发布 odom → base_link，但 world → odom 没有连接
+  修复: 在 launch 文件中添加 world → odom 静态 TF
+
+[2026-05-08 19:28] 第二次运行 full_system.launch
+----------------------------------------------------------------
+进展: Gazebo 启动成功，diff_drive 插件正常加载，map 正常接收
+
+问题4: 规划无反应
+  现象: bridge 收到多个 goal（来自 RViz），但 planner 没有任何规划输出
+  可能原因（待排查）:
+    1. planner 的 vehicle_state ReadLatest 一直失败（odom 可能没被正确写入 SHM）
+    2. goal_pose SHM 的 sequence 检测有问题
+    3. 地图和 Gazebo 世界不匹配（map 是 maze 地图，Gazebo 是 test 世界）
+    4. planner 处于等待循环但没有输出日志
+
+问题5: 地图不匹配
+  现象: RViz 显示的是 map_maze.png（50x50, 1m/px），Gazebo 显示的是 test.world
+  影响: planner 在 maze 地图上规划，但车辆在 Gazebo 的 test.world 中行驶
+  待修复: 需要让 map_server 加载与 Gazebo 世界一致的地图
+
+问题6: TF 警告
+  现象: TF_REPEATED_DATA ignoring data with redundant timestamp for frame base_link
+  原因: diff_drive 插件以 100Hz 发布 odom TF，部分时间戳重复
+  影响: 不影响功能，仅警告
+
+[2026-05-08 19:30] 构建系统整理
+----------------------------------------------------------------
+- 清理了重复的 src/launch/ 目录
+- 隔离了 catkin 和 CMake 两个构建系统
+- 创建 rebuild_all.sh 一键构建脚本
+- 解决了旧工作空间 hybrid_a_star_ws 的包冲突
+
+文件变更清单:
+- src/Hybrid_A_Star/launch/full_system.launch (修改)
+- src/Hybrid_A_Star/launch/gazebo_simulation.launch (未修改)
+- src/Hybrid_A_Star/vehicle_model/worlds/test.world (修复 sun 重复)
+- src/Hybrid_A_Star/vehicle_model/urdf/car.urdf.xacro (skid→diff drive)
+- src/gazebo_bridge/app/run_gazebo_bridge.cpp (修复死锁+topic+控制转换)
+- src/Hybrid_A_Star/CMakeLists.txt (恢复原状)
+- 顶层 CMakeLists.txt (未修改)
+- rebuild_all.sh (新建)
+- rizhi.txt (本文件，新建)
+
+[2026-05-08 19:50] planner 无规划输出 + 地图不匹配 — 修复
+----------------------------------------------------------------
+问题4修复: planner 添加调试日志
+  - 在 main loop 中每 20 次等待打印一次状态
+  - 添加 goal accepted 确认日志
+  - 添加 planning failed 警告日志
+  - 添加 last_vehicle_seq_ 跟踪变量
+
+问题5修复: 地图与 Gazebo 世界匹配
+  - 创建 scripts/generate_map.py 生成匹配地图
+  - 新地图: map_gazebo.pgm (120x80, 0.5m/pixel, origin [-5, -15])
+  - 覆盖范围: [-5, 55]m × [-15, 25]m
+  - full_system.launch 改用 map_gazebo.yaml
+  - 地图中标记了 test.world 中的 5 个障碍物
+
+[2026-05-08 19:50] planner 收到 vehicle_state 但仅一次
+----------------------------------------------------------------
+发现: 调试日志显示 planner 成功读到 vehicle_state (seq=1, pos≈(0,0,0))
+      但之后 sequence 不再变化 → bridge 的 OdomCallback 第 1 次后不再被调用
+      而 GoalCallback 正常（bridge 能收到 goal）
+怀疑: OdomCallback 可能抛异常被 ROS 吞掉，或 diff_drive 停止发布 odom
+修复: 在 OdomCallback 添加计数器和详细日志，每 100 次打印一次
+
+[2026-05-08 19:53] 定位到 Write/ReadLatest 的 sequence bug
+----------------------------------------------------------------
+发现: OdomCallback 被持续调用（计数到 #4300+），每次都 write_ok=1
+      但 planner 永远读到的 sequence=1
+
+根因: DataBusWriter::Write 中 memcpy 把 source struct 的 sequence(0)
+      覆盖到 SHM，然后 sequence++ 永远是 0→1
+      planner ReadLatest 检测到 sequence 不变 → 返回 false
+
+修复: Write 中先保存 old_sequence，memcpy 后再恢复 old_sequence+1
+      - src/ipc/include/ipc/data_bus.h Write 函数
+      - 同时设置 is_valid=0 在写入期间（标记无效）
+
+[2026-05-08 20:52] 根因: PGM 地图 negate → 整个地图被判为障碍物
+----------------------------------------------------------------
+发现: map_data_ 在所有位置都是 1（全部障碍物），导致 GetNeighborNodes 返回 0
+根因: map_gazebo.pgm 中 free=0(黑色)，ROS map_server 默认 黑色=occupied
+修复: map_gazebo.yaml 中 negate: 0 → negate: 1
+
+验证结果:
+  - map_data=0 (free) ✓
+  - 6 neighbors generated ✓
+  - Search succeeded: 1009ms, 251 points, 50.12m ✓
+  - Path published to SHM ✓
+  - Tracker received path ✓
+
+累积修复的 Bug 清单:
+1. Gazebo test.world sun 重复 → 移除重复 light
+2. Gazebo URDF skid steer joint 名不匹配 → 改用 diff_drive
+3. Bridge 死锁 (等待 control_cmd) → 非阻塞打开
+4. Bridge topic /car/odom 不匹配 diff_drive → 改为 /odom
+5. TF 缺失 world→odom → 添加静态 TF
+6. DataBusWriter::Write sequence 覆盖 bug → 保存旧值
+7. PGM 地图 negate 问题 → negate: 1
+8. Planner 调试日志 (已清理)
+
+
+[2026-05-08 21:49] 第三次运行 — 小车动了但乱动，不按路径走
+----------------------------------------------------------------
+现象:
+  - Gazebo/RViz 中小车终于开始移动
+  - 但完全不按规划路径行驶，乱跑
+
+根因分析:
+  问题A: 转向角逐帧振荡
+    日志证据: steer 值在 -0.06 ~ -0.003 之间来回跳
+    原因: Pure Pursuit FindClosestPoint 在路径上逐帧找到不同的最近点
+           → lookahead target 跳跃 → 转向角突变 → 锯齿运动
+
+  问题B: 始终以最大速度 2.0 m/s 行驶
+    日志证据: target_vel 迅速积到上限后恒定不变
+    原因: 速度 P 控制只管追 target_velocity(1.0)，无曲率反馈
+          转弯时不减速，纯几何跟踪器在高速下必然超调偏离
+
+  问题C: 无转向速率限制
+    原因: 两帧间 steering 可瞬时跳变，产生不连续的 zigzag 轨迹
+
+修复:
+  1. Pure Pursuit 转向平滑 (pure_pursuit_tracker.cpp):
+     a. 自适应前视距离: Ld = base_Ld + 2.0 * |v|
+        - 低速时 Ld≈3m (精确跟踪)
+        - 高速时 Ld 增大 (提前预瞄，减少超调)
+     b. 转向速率限制: max 0.5 rad/s
+     c. 低通滤波: steering = 0.3*new + 0.7*old
+        - 消除逐帧抖动
+
+  2. 曲率自适应速度:
+     curvature = 2*local_y / Ld²
+     speed_factor = 1 / (1 + 8.0 * |curvature|)
+     desired_speed = target_vel * speed_factor
+     - 直道: speed_factor≈1.0 → 全速
+     - 急弯: speed_factor→小值 → 自动减速
+
+  3. 加速度限制: max 2.0 m/s² (防瞬间大油门)
+
+  4. 车辆模型: planar_move → diff_drive (运动学模型)
+     a. 质量 50kg + 关节阻尼 5.0 Nms/rad (防 PID 振荡)
+     b. 轮子高摩擦 mu1=mu2=1.0 (防打滑)
+     c. 扭矩 10 Nm (适度加速)
+
+  5. 日志清理:
+     - Bridge: 移除 Odom/CMD 高频日志，只保留 Goal 和关键事件
+     - Planner: 移除 "Waiting for..." 循环日志，只保留规划结果
+     - Tracker: 减少 overrun 警告频率 (100→500)
+     - HybridAStar: 移除起始节点诊断日志
+
+
+[2026-05-08 22:16] 第四次运行 — 车倒着开，冲出地图
+----------------------------------------------------------------
+现象:
+  - 车持续往 -X 方向后退 (x: 0 → -6)
+  - cmd_vel 指令是 +2.0 m/s，但 odom 速度全是负数 (-0.08 ~ -0.10)
+  - 车退到 x=-5.99，超出地图左边界 (map.x ∈ [-5, 55])
+  - Planner 输出 "0 neighbors" → "openset empty" → 规划失败
+
+根因:
+  问题1: diff_drive 关节轴方向反了
+    URDF 中 wheel joint axis 是 "0 1 0"
+    diff_drive 插件据此计算轮子旋转方向，结果与预期相反
+    导致车前进指令 → 实际后退
+
+  问题2: 二进制未部署到 catkin devel 空间
+    roslaunch 从 devel/lib/hybrid_a_star/ 加载可执行文件
+    但 make 编译到了 build_new/src/.../
+    用户运行的是旧二进制（21:16 编译），新代码没生效
+    → 之前清理的 Odom/CMD 日志还在打印
+
+修复:
+  1. URDF 关节轴: axis xyz="0 1 0" → axis xyz="0 -1 0" (两个轮子)
+  2. 部署流程: make 后 cp 到 devel/lib/hybrid_a_star/
+  3. rebuild_all.sh: build_cmake → build_new (统一构建目录)

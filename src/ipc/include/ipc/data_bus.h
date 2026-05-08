@@ -29,9 +29,12 @@ public:
     bool Write(const T& data) {
         if (!shm_.IsValid()) return false;
         T* target = shm_.Get();
+        // 保存旧 sequence，避免被 memcpy 覆盖为 0
+        uint64_t old_seq = target->sequence;
+        target->is_valid = 0;               // 写入中标记为无效
         std::memcpy(target, &data, sizeof(T));
-        target->is_valid = 1;
-        target->sequence++;
+        target->sequence = old_seq + 1;     // 递增 sequence
+        target->is_valid = 1;               // 写入完成
         return true;
     }
 

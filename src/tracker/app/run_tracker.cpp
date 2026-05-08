@@ -55,15 +55,8 @@ int main(int argc, char* argv[]) {
     }
 
     // 等待 planner_path SHM
-    LOG(INFO) << "Waiting for planner_path SHM...";
-    int wait_count = 0;
-    while (g_running && !path_reader.Open(SHM_PLANNER_PATH)) {
-        if (++wait_count % 4 == 0) {  // 每 2 秒打印一次
-            LOG(WARNING) << "Still waiting for planner_path SHM... (attempt " << wait_count << ")";
-        }
+    while (g_running && !path_reader.Open(SHM_PLANNER_PATH))
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
-    LOG(INFO) << "planner_path SHM opened successfully.";
 
     // 创建 control_cmd SHM
     if (!control_writer.Open(SHM_CONTROL_CMD)) {
@@ -132,8 +125,11 @@ int main(int argc, char* argv[]) {
 
         // 3d. 检查是否到达目标
         if (tracker.IsGoalReached(state)) {
-            LOG(INFO) << "Goal reached! Stopping.";
-            cmd.acceleration = -0.5;  // 减速
+            if (tracker.HasPath()) {
+                LOG_FIRST_N(INFO, 1) << "Goal reached! Stopping.";
+            }
+            // 到达目标或无路径 → 减速到零
+            cmd.acceleration = -1.0 * state.linear_velocity;  // 抵消当前速度
             cmd.steering_angle = 0.0;
         }
 
@@ -154,7 +150,7 @@ int main(int argc, char* argv[]) {
         } else {
             // 超过周期，警告
             static int overrun_count = 0;
-            if (++overrun_count % 100 == 0) {
+            if (++overrun_count % 500 == 0) {
                 LOG(WARNING) << "Control loop overrun: " << elapsed.count() << "us";
             }
         }

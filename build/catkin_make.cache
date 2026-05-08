@@ -1,2 +1,2 @@
 Hybrid_A_Star
--DCATKIN_DEVEL_PREFIX=/home/xiaoyubb/hybrid_a_star_ws/devel -DCMAKE_INSTALL_PREFIX=/home/xiaoyubb/hybrid_a_star_ws/install -G Unix Makefiles
+-DCATKIN_DEVEL_PREFIX=/home/xiaoyubb/hybrid_a_star/devel -DCMAKE_INSTALL_PREFIX=/home/xiaoyubb/hybrid_a_star/install -G Unix Makefiles

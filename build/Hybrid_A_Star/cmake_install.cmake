@@ -1,8 +1,8 @@
-# Install script for directory: /home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star
+# Install script for directory: /home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/home/xiaoyubb/hybrid_a_star_ws/install")
+  set(CMAKE_INSTALL_PREFIX "/home/xiaoyubb/hybrid_a_star/install")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -38,17 +38,17 @@ if(NOT DEFINED CMAKE_CROSSCOMPILING)
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/pkgconfig" TYPE FILE FILES "/home/xiaoyubb/hybrid_a_star_ws/build/Hybrid_A_Star/catkin_generated/installspace/hybrid_a_star.pc")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/pkgconfig" TYPE FILE FILES "/home/xiaoyubb/hybrid_a_star/build/Hybrid_A_Star/catkin_generated/installspace/hybrid_a_star.pc")
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/hybrid_a_star/cmake" TYPE FILE FILES
-    "/home/xiaoyubb/hybrid_a_star_ws/build/Hybrid_A_Star/catkin_generated/installspace/hybrid_a_starConfig.cmake"
-    "/home/xiaoyubb/hybrid_a_star_ws/build/Hybrid_A_Star/catkin_generated/installspace/hybrid_a_starConfig-version.cmake"
+    "/home/xiaoyubb/hybrid_a_star/build/Hybrid_A_Star/catkin_generated/installspace/hybrid_a_starConfig.cmake"
+    "/home/xiaoyubb/hybrid_a_star/build/Hybrid_A_Star/catkin_generated/installspace/hybrid_a_starConfig-version.cmake"
     )
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/hybrid_a_star" TYPE FILE FILES "/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/package.xml")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/hybrid_a_star" TYPE FILE FILES "/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/package.xml")
 endif()
 

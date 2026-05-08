@@ -6,15 +6,15 @@
 
 #IncludeRegexTransform: 
 
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/app/run_hybrid_astar.cpp
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/app/run_hybrid_astar.cpp
 hybrid_a_star/hybrid_a_star_flow.h
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/app/hybrid_a_star/hybrid_a_star_flow.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/app/hybrid_a_star/hybrid_a_star_flow.h
 3rd/backward.hpp
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/app/3rd/backward.hpp
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/app/3rd/backward.hpp
 ros/ros.h
 -
 
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/3rd/backward.hpp
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/3rd/backward.hpp
 fstream
 -
 iostream
@@ -76,7 +76,7 @@ utility
 map
 -
 
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/costmap_subscriber.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/costmap_subscriber.h
 ros/ros.h
 -
 nav_msgs/OccupancyGrid.h
@@ -90,7 +90,7 @@ thread
 string
 -
 
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/goal_pose_subscriber.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/goal_pose_subscriber.h
 ros/ros.h
 -
 geometry_msgs/PoseStamped.h
@@ -100,11 +100,11 @@ deque
 mutex
 -
 
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/hybrid_a_star.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/hybrid_a_star.h
 rs_path.h
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/rs_path.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/rs_path.h
 state_node.h
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/state_node.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/state_node.h
 glog/logging.h
 -
 map
@@ -112,19 +112,19 @@ map
 memory
 -
 
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/hybrid_a_star_flow.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/hybrid_a_star_flow.h
 hybrid_a_star.h
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/hybrid_a_star.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/hybrid_a_star.h
 costmap_subscriber.h
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/costmap_subscriber.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/costmap_subscriber.h
 init_pose_subscriber.h
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/init_pose_subscriber.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/init_pose_subscriber.h
 goal_pose_subscriber.h
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/goal_pose_subscriber.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/goal_pose_subscriber.h
 ros/ros.h
 -
 
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/init_pose_subscriber.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/init_pose_subscriber.h
 ros/ros.h
 -
 geometry_msgs/PoseWithCovarianceStamped.h
@@ -134,21 +134,21 @@ deque
 mutex
 -
 
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/rs_path.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/rs_path.h
 type.h
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/type.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/type.h
 cmath
 -
 limits
 -
 
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/state_node.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/state_node.h
 type.h
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/type.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/type.h
 Eigen/Dense
 -
 
-/home/xiaoyubb/hybrid_a_star_ws/src/Hybrid_A_Star/include/hybrid_a_star/type.h
+/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/include/hybrid_a_star/type.h
 vector
 -
 Eigen/Core

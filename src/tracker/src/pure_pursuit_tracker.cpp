@@ -5,11 +5,9 @@
 
 bool PurePursuitTracker::Init(const TrackerConfig& cfg) {
     cfg_ = cfg;
-    LOG(INFO) << "PurePursuitTracker initialized. "
-              << "lookahead=" << cfg_.lookahead_distance
+    LOG(INFO) << "PurePursuit ready. lookahead=" << cfg_.lookahead_distance
               << " target_vel=" << cfg_.target_velocity
-              << " wheel_base=" << cfg_.wheel_base
-              << " max_steering=" << cfg_.max_steering;
+              << " max_steer=" << cfg_.max_steering;
     return true;
 }
 
@@ -72,41 +70,55 @@ ControlCommand PurePursuitTracker::Compute(const VehicleState& state) {
     cmd.timestamp = state.timestamp;
 
     if (!path_set_ || path_.empty()) {
-        // 没有路径，停止
         cmd.acceleration = -cfg_.kp_velocity * state.linear_velocity;
         cmd.steering_angle = 0.0;
+        last_steering_ = 0.0;
         return cmd;
     }
 
     // 1. 找到路径上最近的点
     size_t closest = FindClosestPoint(state.x, state.y);
 
-    // 2. 找到前视距离处的目标点
-    PathPoint target = FindLookaheadPoint(closest, cfg_.lookahead_distance);
+    // 2. 自适应前视距离: Ld = base + kv * |v|
+    double ld = cfg_.lookahead_distance + 2.0 * std::abs(state.linear_velocity);
+    ld = std::max(1.5, std::min(8.0, ld));
 
-    // 3. 计算转向角（Pure Pursuit 核心公式）
-    // 将目标点转换到车辆坐标系
+    // 3. 找到前视距离处的目标点
+    PathPoint target = FindLookaheadPoint(closest, ld);
+
+    // 4. 变换到车辆坐标系
     double dx = target.x - state.x;
     double dy = target.y - state.y;
-
-    // 旋转到车辆坐标系
     double cos_theta = std::cos(state.theta);
     double sin_theta = std::sin(state.theta);
-    double local_x = cos_theta * dx + sin_theta * dy;
     double local_y = -sin_theta * dx + cos_theta * dy;
 
-    // Pure Pursuit 公式: δ = atan2(2 * L * local_y / Ld^2)
-    double ld = cfg_.lookahead_distance;
+    // 5. Pure Pursuit 转向角
     double curvature = 2.0 * local_y / (ld * ld);
-    double steering = std::atan2(curvature * cfg_.wheel_base, 1.0);
+    double raw_steering = std::atan2(curvature * cfg_.wheel_base, 1.0);
 
-    // 限制转向角
+    // 6. 转向速率限制 + 低通滤波 (防振荡)
+    double max_steering_rate = 0.5;  // rad/s
+    double dt = 0.01;                // 100Hz 控制周期
+    double max_delta = max_steering_rate * dt;
+    double steering_delta = raw_steering - last_steering_;
+    steering_delta = std::max(-max_delta, std::min(max_delta, steering_delta));
+    double steering = last_steering_ + steering_delta;
+    // 低通滤波: 30% new + 70% old
+    steering = 0.3 * steering + 0.7 * last_steering_;
+    last_steering_ = steering;
+
     cmd.steering_angle = std::max(-cfg_.max_steering,
                                   std::min(cfg_.max_steering, steering));
 
-    // 4. 速度控制（简单 P 控制）
-    double v_error = cfg_.target_velocity - state.linear_velocity;
-    cmd.acceleration = cfg_.kp_velocity * v_error;
+    // 7. 曲率自适应速度: 弯道减速
+    double abs_curvature = std::abs(2.0 * local_y / (ld * ld));
+    double speed_factor = 1.0 / (1.0 + 8.0 * abs_curvature);
+    double desired_speed = cfg_.target_velocity * speed_factor;
+
+    // 8. 速度 P 控制 (限制加速度)
+    double v_error = desired_speed - state.linear_velocity;
+    cmd.acceleration = std::max(-2.0, std::min(2.0, cfg_.kp_velocity * v_error));
 
     return cmd;
 }

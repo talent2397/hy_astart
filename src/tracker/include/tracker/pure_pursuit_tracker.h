@@ -29,6 +29,7 @@ public:
     ControlCommand Compute(const VehicleState& state) override;
     bool IsGoalReached(const VehicleState& state) override;
     void Reset() override;
+    bool HasPath() const { return path_set_; }
 
 private:
     /**
@@ -49,6 +50,7 @@ private:
     TrackerConfig cfg_;
     Path path_;
     bool path_set_ = false;
+    double last_steering_ = 0.0;  // 转向平滑
 };
 
 #endif // HYBRID_ASTAR_TRACKER_PURE_PURSUIT_TRACKER_H

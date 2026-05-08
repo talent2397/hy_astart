@@ -39,8 +39,13 @@ static ros::Publisher* g_cmd_vel_pub = nullptr;
 static int g_map_fd = -1;  // mmap fd for map data
 static uint8_t* g_map_mmap = nullptr;
 static size_t g_map_mmap_size = 0;
+static double g_last_linear_vel = 0.0;
+static constexpr double kWheelBase = 2.0;  // 与 URDF 中的 wheelbase 一致
 
 void OdomCallback(const nav_msgs::Odometry::ConstPtr& msg) {
+    static int odom_count = 0;
+    odom_count++;
+
     VehicleStateData state;
     state.x = msg->pose.pose.position.x;
     state.y = msg->pose.pose.position.y;
@@ -48,7 +53,10 @@ void OdomCallback(const nav_msgs::Odometry::ConstPtr& msg) {
     state.linear_velocity = msg->twist.twist.linear.x;
     state.angular_velocity = msg->twist.twist.angular.z;
     state.timestamp_ns = msg->header.stamp.toNSec();
+
     g_vehicle_writer.Write(state);
+    g_last_linear_vel = msg->twist.twist.linear.x;
+
 }
 
 void GoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
@@ -89,14 +97,45 @@ void MapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
 
 void ControlLoop() {
     ros::Rate rate(100);  // 100Hz
+    double dt = 0.01;     // 100Hz 对应的时间步长
+    double target_vel = 0.0;
+
+    // 尝试打开 control_cmd SHM（由 Tracker 创建），非阻塞
+    bool control_ready = g_control_reader.Open(SHM_CONTROL_CMD);
+
     while (g_running && ros::ok()) {
+        // 如果 control_cmd SHM 还没打开，持续尝试
+        if (!control_ready) {
+            control_ready = g_control_reader.Open(SHM_CONTROL_CMD);
+            if (control_ready) {
+                LOG(INFO) << "ControlCmd SHM connected!";
+            }
+        }
+
         ControlCmdData cmd;
-        if (g_control_reader.ReadLatest(cmd)) {
+        if (control_ready && g_control_reader.ReadLatest(cmd)) {
+            // 加速度积分到目标速度
+            target_vel += cmd.acceleration * dt;
+            target_vel = std::max(0.0, std::min(2.0, target_vel));
+
+            // 自行车模型 steering_angle → 滑移转向 angular_velocity
+            double angular_z = target_vel * std::tan(cmd.steering_angle) / kWheelBase;
+            angular_z = std::max(-1.0, std::min(1.0, angular_z));
+
             geometry_msgs::Twist twist;
-            twist.linear.x = cmd.acceleration;   // 简化：加速度直接映射到线速度
-            // 实际应该积分：v += a*dt, 但简化先直接发布
-            twist.angular.z = cmd.steering_angle;
+            twist.linear.x = target_vel;
+            twist.angular.z = angular_z;
             g_cmd_vel_pub->publish(twist);
+
+        } else {
+            // 超过 0.5 秒没收到控制指令 → 停车
+            if (target_vel > 0.01) {
+                target_vel = std::max(0.0, target_vel - 0.5 * dt);
+                geometry_msgs::Twist twist;
+                twist.linear.x = target_vel;
+                twist.angular.z = 0.0;
+                g_cmd_vel_pub->publish(twist);
+            }
         }
         ros::spinOnce();
         rate.sleep();
@@ -148,24 +187,19 @@ int main(int argc, char* argv[]) {
     }
 
     // ---- ROS Subscribers ----
-    ros::Subscriber odom_sub = nh.subscribe("/car/odom", 1, OdomCallback);
+    ros::Subscriber odom_sub = nh.subscribe("/odom", 1, OdomCallback);
     ros::Subscriber goal_sub = nh.subscribe("/move_base_simple/goal", 1, GoalCallback);
     ros::Subscriber map_sub = nh.subscribe("/map", 1, MapCallback);
 
     // ---- ROS Publisher ----
-    ros::Publisher cmd_vel_pub = nh.advertise<geometry_msgs::Twist>("/car/cmd_vel", 1);
+    ros::Publisher cmd_vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
     g_cmd_vel_pub = &cmd_vel_pub;
 
-    // ---- 打开控制指令 SHM (reader) ----
-    // 等待 Tracker 创建
-    LOG(INFO) << "Waiting for control_cmd SHM...";
-    while (g_running && ros::ok() && !g_control_reader.Open(SHM_CONTROL_CMD)) {
-        ros::Duration(0.5).sleep();
-    }
-
-    LOG(INFO) << "Gazebo Bridge ready. All IPC channels connected.";
+    LOG(INFO) << "Gazebo Bridge ready. Entering control loop...";
 
     // ---- 控制发布循环 ----
+    // 不在启动时阻塞等待 control_cmd SHM，避免与 Tracker 形成死锁
+    // control_cmd SHM 由 Tracker 创建，Bridge 在循环中非阻塞地尝试打开
     ControlLoop();
 
     // ---- 清理 ----

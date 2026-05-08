@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "/home/xiaoyubb/hybrid_a_star_ws/devel/lib/libPATH_SEARCHER_LIB.pdb"
-  "/home/xiaoyubb/hybrid_a_star_ws/devel/lib/libPATH_SEARCHER_LIB.so"
+  "/home/xiaoyubb/hybrid_a_star/devel/lib/libPATH_SEARCHER_LIB.pdb"
+  "/home/xiaoyubb/hybrid_a_star/devel/lib/libPATH_SEARCHER_LIB.so"
   "CMakeFiles/PATH_SEARCHER_LIB.dir/src/costmap_subscriber.cpp.o"
   "CMakeFiles/PATH_SEARCHER_LIB.dir/src/goal_pose_subscriber.cpp.o"
   "CMakeFiles/PATH_SEARCHER_LIB.dir/src/hybrid_a_star.cpp.o"

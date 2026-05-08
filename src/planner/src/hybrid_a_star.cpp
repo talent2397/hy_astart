@@ -459,7 +459,10 @@ bool HybridAStar::Search(const Vec3d& start_state, const Vec3d& goal_state) {
         }
     }
 
-    LOG(WARNING) << "Search failed: openset empty";
+    LOG(WARNING) << "Search failed: openset empty after " << count
+                 << " iterations, visited=" << visited_node_number_
+                 << " total_collision_checks=" << num_check_collision
+                 << " collision_time_ms=" << check_collision_use_time;
     return false;
 }
 

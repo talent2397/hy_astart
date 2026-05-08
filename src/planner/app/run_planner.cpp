@@ -131,7 +131,6 @@ int main(int argc, char* argv[]) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             continue;
         }
-
         // 4b. 读取目标位姿
         GoalPoseData goal;
         bool has_new_goal = goal_reader.ReadLatest(goal);
@@ -145,6 +144,9 @@ int main(int argc, char* argv[]) {
             goal.sequence != last_goal.sequence)) {
             last_goal = goal;
             has_last_goal = true;
+            LOG(INFO) << "New goal accepted: (" << goal.x << ","
+                      << goal.y << "," << goal.theta << ") seq="
+                      << goal.sequence;
         }
 
         if (!has_last_goal) {
@@ -185,6 +187,10 @@ int main(int argc, char* argv[]) {
             LOG(INFO) << "Path published: " << path_data.path_size << " points to SHM";
 
             // 清空目标，等待下一次
+            has_last_goal = false;
+        } else {
+            LOG(WARNING) << "Planning failed from (" << start.x << "," << start.y
+                         << ") to (" << end.x << "," << end.y << ")";
             has_last_goal = false;
         }
 
