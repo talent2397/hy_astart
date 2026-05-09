@@ -97,6 +97,7 @@
             <odometryTopic>odom</odometryTopic>
             <odometryFrame>odom</odometryFrame>
             <robotBaseFrame>base_link</robotBaseFrame>
+            <publishOdomTF>true</publishOdomTF>
         </plugin>
     </gazebo>
 

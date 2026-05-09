@@ -1,7 +1,7 @@
 # Pure Pursuit / MPC 跟踪器配置
 tracker:
   lookahead_distance: 3.0           # 前视距离 (m)
-  target_velocity: 1.0              # 目标速度 (m/s)
+  target_velocity: 5.0              # 目标速度 (m/s)
   max_steering: 0.6                 # 最大转向角 (rad)
   wheel_base: 2.0                   # 轴距 (m)
   goal_tolerance_xy: 0.2            # 到达判定距离 (m)

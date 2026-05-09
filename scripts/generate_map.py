@@ -5,11 +5,11 @@ from PIL import Image
 import yaml
 
 # 地图参数
-RESOLUTION = 0.5  # m/pixel (更精细)
+RESOLUTION = 0.5  # m/pixel
 WIDTH = 120       # 60m
 HEIGHT = 80       # 40m
-ORIGIN_X = -5.0   # 世界坐标系原点对应网格(0,0)
-ORIGIN_Y = -15.0
+ORIGIN_X = -5   # 地图左边缘从 world x=-5 开始
+ORIGIN_Y = -15  # 地图下边缘从 world y=-15 开始, 走廊 y=[-5,5] 在地图中间
 
 # 创建空地（0 = free）
 grid = np.zeros((HEIGHT, WIDTH), dtype=np.uint8)
@@ -46,7 +46,7 @@ yaml_content = {
     'origin': [ORIGIN_X, ORIGIN_Y, 0.0],
     'occupied_thresh': 0.1,
     'free_thresh': 0.05,
-    'negate': 0,
+    'negate': 1,
 }
 with open('/home/xiaoyubb/hybrid_a_star/src/Hybrid_A_Star/maps/map_gazebo.yaml', 'w') as f:
     yaml.dump(yaml_content, f, default_flow_style=False)

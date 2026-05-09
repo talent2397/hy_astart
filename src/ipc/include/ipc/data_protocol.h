@@ -11,6 +11,7 @@
 #define SHM_PLANNER_PATH    "/hy_astar_planner_path"
 #define SHM_CONTROL_CMD     "/hy_astar_control_cmd"
 #define SHM_GOAL_POSE       "/hy_astar_goal_pose"
+#define SHM_INITIAL_POSE    "/hy_astar_initial_pose"
 #define SHM_MAP_DATA        "/hy_astar_map_data"
 
 // 消息队列命名约定

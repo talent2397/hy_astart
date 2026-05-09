@@ -10,12 +10,14 @@
 
 static std::atomic<bool> g_running{true};
 
-void SignalHandler(int sig) {
+void SignalHandler(int sig)
+{
     LOG(INFO) << "Received signal " << sig << ", shutting down...";
     g_running = false;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
     google::InitGoogleLogging(argv[0]);
     google::InstallFailureSignalHandler();
     FLAGS_logtostderr = true;
@@ -29,14 +31,15 @@ int main(int argc, char* argv[]) {
     TrackerConfig tracker_cfg;
     // TODO: 从 YAML 文件加载配置
     tracker_cfg.lookahead_distance = 3.0;
-    tracker_cfg.target_velocity = 1.0;
+    tracker_cfg.target_velocity = 5.0;
     tracker_cfg.max_steering = 0.6;
     tracker_cfg.wheel_base = 2.0;
     tracker_cfg.goal_tolerance_xy = 0.2;
     tracker_cfg.kp_velocity = 0.5;
 
     PurePursuitTracker tracker;
-    if (!tracker.Init(tracker_cfg)) {
+    if (!tracker.Init(tracker_cfg))
+    {
         LOG(FATAL) << "Failed to initialize tracker";
         return 1;
     }
@@ -50,7 +53,8 @@ int main(int argc, char* argv[]) {
 
     // 等待 vehicle_state SHM
     LOG(INFO) << "Waiting for vehicle_state SHM...";
-    while (g_running && !vehicle_reader.Open(SHM_VEHICLE_STATE)) {
+    while (g_running && !vehicle_reader.Open(SHM_VEHICLE_STATE))
+    {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
@@ -59,7 +63,8 @@ int main(int argc, char* argv[]) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     // 创建 control_cmd SHM
-    if (!control_writer.Open(SHM_CONTROL_CMD)) {
+    if (!control_writer.Open(SHM_CONTROL_CMD))
+    {
         LOG(FATAL) << "Failed to create control_cmd SHM";
         return 1;
     }
@@ -77,19 +82,24 @@ int main(int argc, char* argv[]) {
     auto last_path_update = std::chrono::steady_clock::now();
     [[maybe_unused]] bool has_path = false;
 
-    while (g_running) {
+    while (g_running)
+    {
         auto cycle_start = std::chrono::steady_clock::now();
 
         // 3a. 检查是否有新路径（非阻塞）
         IPCMessage msg;
-        if (mq_path_ready.TryReceive(msg)) {
-            if (msg.type == IPCMessageType::PATH_READY) {
+        if (mq_path_ready.TryReceive(msg))
+        {
+            if (msg.type == IPCMessageType::PATH_READY)
+            {
                 // 读取新路径
                 PlannerPathData path_data;
-                if (path_reader.ReadLatest(path_data)) {
+                if (path_reader.ReadLatest(path_data))
+                {
                     Path path;
                     path.reserve(path_data.path_size);
-                    for (uint32_t i = 0; i < path_data.path_size; ++i) {
+                    for (uint32_t i = 0; i < path_data.path_size; ++i)
+                    {
                         PathPoint pt;
                         pt.x = path_data.path_points[i * 4 + 0];
                         pt.y = path_data.path_points[i * 4 + 1];
@@ -107,7 +117,8 @@ int main(int argc, char* argv[]) {
 
         // 3b. 读取车辆状态
         VehicleStateData vehicle;
-        if (!vehicle_reader.ReadLatest(vehicle)) {
+        if (!vehicle_reader.ReadLatest(vehicle))
+        {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
             continue;
         }
@@ -124,12 +135,14 @@ int main(int argc, char* argv[]) {
         ControlCommand cmd = tracker.Compute(state);
 
         // 3d. 检查是否到达目标
-        if (tracker.IsGoalReached(state)) {
-            if (tracker.HasPath()) {
+        if (tracker.IsGoalReached(state))
+        {
+            if (tracker.HasPath())
+            {
                 LOG_FIRST_N(INFO, 1) << "Goal reached! Stopping.";
             }
             // 到达目标或无路径 → 减速到零
-            cmd.acceleration = -1.0 * state.linear_velocity;  // 抵消当前速度
+            cmd.acceleration = -1.0 * state.linear_velocity; // 抵消当前速度
             cmd.steering_angle = 0.0;
         }
 
@@ -144,13 +157,17 @@ int main(int argc, char* argv[]) {
         // 4. 维持 100Hz 频率
         auto cycle_end = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(cycle_end - cycle_start);
-        auto target = std::chrono::microseconds(10000);  // 10ms = 100Hz
-        if (elapsed < target) {
+        auto target = std::chrono::microseconds(10000); // 10ms = 100Hz
+        if (elapsed < target)
+        {
             std::this_thread::sleep_for(target - elapsed);
-        } else {
+        }
+        else
+        {
             // 超过周期，警告
             static int overrun_count = 0;
-            if (++overrun_count % 500 == 0) {
+            if (++overrun_count % 500 == 0)
+            {
                 LOG(WARNING) << "Control loop overrun: " << elapsed.count() << "us";
             }
         }

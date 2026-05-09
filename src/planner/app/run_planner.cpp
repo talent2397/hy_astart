@@ -47,6 +47,7 @@ int main(int argc, char* argv[]) {
     // ---- 2. 打开共享内存和消息队列 ----
     DataBusReader<VehicleStateData> vehicle_reader;
     DataBusReader<GoalPoseData> goal_reader;
+    DataBusReader<GoalPoseData> init_reader;
     DataBusReader<MapShmHeader> map_reader;
     DataBusWriter<PlannerPathData> path_writer;
     MessageQueue<IPCMessage> mq_planner_to_tracker;
@@ -60,6 +61,11 @@ int main(int argc, char* argv[]) {
     // 等待 goal_pose SHM
     LOG(INFO) << "Waiting for goal_pose SHM...";
     while (g_running && !goal_reader.Open(SHM_GOAL_POSE)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    // 等待 initial_pose SHM
+    while (g_running && !init_reader.Open(SHM_INITIAL_POSE)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
@@ -125,13 +131,18 @@ int main(int argc, char* argv[]) {
     while (g_running) {
         auto cycle_start = std::chrono::steady_clock::now();
 
-        // 4a. 读取车辆状态（作为起点）
+        // 4a. 读取车辆状态
         VehicleStateData vehicle;
         if (!vehicle_reader.ReadLatest(vehicle)) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             continue;
         }
-        // 4b. 读取目标位姿
+
+        // 4b. 检查是否有 RViz 设置的初始位姿（作为起点覆盖）
+        GoalPoseData init_pose;
+        bool use_init_pose = init_reader.ReadLatest(init_pose);
+
+        // 4c. 读取目标位姿
         GoalPoseData goal;
         bool has_new_goal = goal_reader.ReadLatest(goal);
 
@@ -156,6 +167,11 @@ int main(int argc, char* argv[]) {
 
         // 3d. 执行规划
         Pose2D start(vehicle.x, vehicle.y, vehicle.theta);
+        if (use_init_pose) {
+            start = Pose2D(init_pose.x, init_pose.y, init_pose.theta);
+            LOG_FIRST_N(INFO, 1) << "Using initialpose as start: ("
+                                 << start.x << "," << start.y << "," << start.theta << ")";
+        }
         Pose2D end(last_goal.x, last_goal.y, last_goal.theta);
         Path planned_path;
 

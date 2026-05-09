@@ -8,13 +8,21 @@
 - ✅ RViz 可视化（路径/搜索树/车辆姿态）
 - ✅ 静态地图加载（map_server）
 - ✅ 基础线程池框架（未深入使用）
+- ✅ 多进程架构（3 进程: gazebo_bridge / planner / tracker）
+- ✅ 进程间通信机制（POSIX SHM + 消息队列）
+- ✅ Gazebo 仿真集成（diff_drive 车辆模型 + test.world）
+- ✅ Pure Pursuit 轨迹跟踪（接口化 ITracker, 自适应前视+曲率减速+转向平滑）
+- ✅ 实时车辆状态反馈（SHM vehicle_state, 100Hz）
+- ✅ 一键构建部署（rebuild_all.sh）
+- ✅ 全链路通: RViz → Planner → Tracker → Gazebo
 
 ### 1.2 缺失功能
-- ❌ 运动控制/轨迹跟踪
-- ❌ Gazebo 仿真集成
-- ❌ 实时车辆状态反馈
-- ❌ 多进程架构
-- ❌ 进程间通信机制
+- ❌ MPC 控制器（当前使用 Pure Pursuit 替代）
+- ❌ Unix Domain Socket 配置通道
+- ❌ YAML 配置加载
+- ❌ RViz 路径/搜索树可视化（新架构未发布 ROS 可视化 topic）
+- ❌ 动态障碍物处理
+- ❌ 在线重规划
 
 ---
 
@@ -155,7 +163,7 @@ private:
 // mpc_controller.h
 class MPCController {
 public:
-    struct MP CConfig {
+    struct MPCConfig {
         int horizon_length = 20;         // 预测时域 N
         double dt = 0.05;                // 离散时间步长 (s)
         double max_steering = 0.6;       // 最大转向角 (rad)
@@ -166,7 +174,7 @@ public:
         Eigen::MatrixXd R;  // 控制输入权重 (2x2) [a, delta]
     };
 
-    bool Init(const MP CConfig& config);
+    bool Init(const MPCConfig& config);
 
     // 设置参考轨迹（从共享内存读取）
     void SetReferencePath(const Path& path);
@@ -196,7 +204,7 @@ private:
 
     // 使用 qpOASES 或 OSQP 求解器
     std::unique_ptr<QPSolver> qp_solver_;
-    MP CConfig config_;
+    MPCConfig config_;
     Path reference_path_;
 };
 ```

@@ -39,7 +39,7 @@ void HybridAStarPlanner::LoadMap(const MapData& map) {
         }
     }
 
-    searcher_->SetVehicleShape(4.7, 2.0, 1.3);
+    searcher_->SetVehicleShape(2.0, 1.0, 0.5);
 
     LOG(INFO) << "Map loaded: " << map.width << "x" << map.height
               << " res=" << map.resolution
