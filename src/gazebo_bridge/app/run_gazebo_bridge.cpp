@@ -2,14 +2,15 @@
 #include "ipc/data_protocol.h"
 
 #include <ros/ros.h>
-#include <nav_msgs/Odometry.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Path.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <geometry_msgs/Twist.h>
 #include <gazebo_msgs/SetModelState.h>
+#include <gazebo_msgs/ModelStates.h>
 #include <tf/transform_datatypes.h>
+#include <tf/transform_broadcaster.h>
 
 #include <glog/logging.h>
 #include <csignal>
@@ -21,7 +22,7 @@
  * @brief Gazebo Bridge 进程
  *
  * 职责：在 ROS Topic 和共享内存数据总线之间做双向转换。
- *   ROS → SHM: /odom, /map, /move_base_simple/goal, /initialpose
+ *   ROS → SHM: /gazebo/model_states, /map, /move_base_simple/goal, /initialpose
  *   SHM → ROS: /cmd_vel, /planned_path
  */
 
@@ -41,21 +42,43 @@ static DataBusReader<PlannerPathData> g_path_reader;
 static ros::Publisher* g_cmd_vel_pub = nullptr;
 static ros::Publisher* g_path_pub = nullptr;
 static ros::ServiceClient* g_set_model_client = nullptr;
+static tf::TransformBroadcaster* g_tf_broadcaster = nullptr;
 static int g_map_fd = -1;
 static uint8_t* g_map_mmap = nullptr;
 static size_t g_map_mmap_size = 0;
 static uint64_t g_last_path_seq = 0;
 static constexpr double kWheelBase = 2.0;
 
-void OdomCallback(const nav_msgs::Odometry::ConstPtr& msg) {
-    VehicleStateData state;
-    state.x = msg->pose.pose.position.x;
-    state.y = msg->pose.pose.position.y;
-    state.theta = tf::getYaw(msg->pose.pose.orientation);
-    state.linear_velocity = msg->twist.twist.linear.x;
-    state.angular_velocity = msg->twist.twist.angular.z;
-    state.timestamp_ns = msg->header.stamp.toNSec();
-    g_vehicle_writer.Write(state);
+void GazeboModelStatesCallback(const gazebo_msgs::ModelStates::ConstPtr& msg) {
+    for (size_t i = 0; i < msg->name.size(); ++i) {
+        if (msg->name[i] == "car") {
+            const auto& pose = msg->pose[i];
+            const auto& twist = msg->twist[i];
+
+            // 写入 SHM vehicle_state（Gazebo 真实位姿）
+            VehicleStateData state;
+            state.x = pose.position.x;
+            state.y = pose.position.y;
+            state.theta = tf::getYaw(pose.orientation);
+            // 投影世界坐标系速度到车辆前进方向 (twist.linear.x/y 是世界坐标系分量)
+            double cos_yaw = std::cos(state.theta);
+            double sin_yaw = std::sin(state.theta);
+            state.linear_velocity = twist.linear.x * cos_yaw + twist.linear.y * sin_yaw;
+            state.angular_velocity = twist.angular.z;
+            state.timestamp_ns = ros::Time::now().toNSec();
+            g_vehicle_writer.Write(state);
+
+            // 发布 odom → base_link TF（绕过 diff_drive 积分里程计）
+            tf::Transform transform;
+            transform.setOrigin(tf::Vector3(pose.position.x, pose.position.y, 0.0));
+            transform.setRotation(tf::Quaternion(
+                pose.orientation.x, pose.orientation.y,
+                pose.orientation.z, pose.orientation.w));
+            g_tf_broadcaster->sendTransform(tf::StampedTransform(
+                transform, ros::Time::now(), "odom", "base_link"));
+            return;
+        }
+    }
 }
 
 void GoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
@@ -114,8 +137,11 @@ void ControlLoop() {
     ros::Rate rate(100);
     double dt = 0.01;
     double target_vel = 0.0;
+    double last_steering = 0.0;   // 保持上一次转向角（防丢帧）
+    double last_accel = 0.0;      // 保持上一次加速度（防丢帧）
 
     bool control_ready = g_control_reader.Open(SHM_CONTROL_CMD);
+    bool path_reader_ready = g_path_reader.Open(SHM_PLANNER_PATH);
 
     while (g_running && ros::ok()) {
         if (!control_ready) {
@@ -124,50 +150,55 @@ void ControlLoop() {
                 LOG(INFO) << "ControlCmd SHM connected!";
             }
         }
+        if (!path_reader_ready) {
+            path_reader_ready = g_path_reader.Open(SHM_PLANNER_PATH);
+            if (path_reader_ready) {
+                LOG(INFO) << "PlannerPath SHM connected!";
+            }
+        }
 
         ControlCmdData cmd;
         if (control_ready && g_control_reader.ReadLatest(cmd)) {
             target_vel += cmd.acceleration * dt;
             target_vel = std::max(0.0, std::min(3.0, target_vel));
+            last_steering = cmd.steering_angle;
+            last_accel = cmd.acceleration;
+        } else {
+            // 未收到新控制指令 → 保持上一帧加速度和转向角
+            target_vel += last_accel * dt;
+            target_vel = std::max(0.0, std::min(3.0, target_vel));
+        }
 
-            double angular_z = target_vel * std::tan(cmd.steering_angle) / kWheelBase;
+        // 发布 cmd_vel（无论是否收到新指令，都用最新状态计算）
+        {
+            double angular_z = target_vel * std::tan(last_steering) / kWheelBase;
             angular_z = std::max(-1.0, std::min(1.0, angular_z));
-
             geometry_msgs::Twist twist;
             twist.linear.x = target_vel;
             twist.angular.z = angular_z;
             g_cmd_vel_pub->publish(twist);
+        }
 
-            // 路径可视化
-            {
-                const PlannerPathData* path_ptr = g_path_reader.Get();
-                if (path_ptr && path_ptr->is_valid && path_ptr->sequence != g_last_path_seq && path_ptr->path_size > 0) {
-                    g_last_path_seq = path_ptr->sequence;
-                    nav_msgs::Path ros_path;
-                    ros_path.header.frame_id = "map";
-                    ros_path.header.stamp = ros::Time::now();
-                    ros_path.poses.reserve(path_ptr->path_size);
-                    for (uint32_t i = 0; i < path_ptr->path_size; ++i) {
-                        geometry_msgs::PoseStamped pose;
-                        pose.header.frame_id = "map";
-                        pose.pose.position.x = path_ptr->path_points[i * 4 + 0];
-                        pose.pose.position.y = path_ptr->path_points[i * 4 + 1];
-                        pose.pose.position.z = 0;
-                        double theta = path_ptr->path_points[i * 4 + 2];
-                        pose.pose.orientation = tf::createQuaternionMsgFromYaw(theta);
-                        ros_path.poses.push_back(pose);
-                    }
-                    g_path_pub->publish(ros_path);
+        // 路径可视化（独立于控制指令，每次检测到新路径就发布）
+        {
+            const PlannerPathData* path_ptr = g_path_reader.Get();
+            if (path_ptr && path_ptr->is_valid && path_ptr->sequence != g_last_path_seq && path_ptr->path_size > 0) {
+                g_last_path_seq = path_ptr->sequence;
+                nav_msgs::Path ros_path;
+                ros_path.header.frame_id = "map";
+                ros_path.header.stamp = ros::Time::now();
+                ros_path.poses.reserve(path_ptr->path_size);
+                for (uint32_t i = 0; i < path_ptr->path_size; ++i) {
+                    geometry_msgs::PoseStamped pose;
+                    pose.header.frame_id = "map";
+                    pose.pose.position.x = path_ptr->path_points[i * 4 + 0];
+                    pose.pose.position.y = path_ptr->path_points[i * 4 + 1];
+                    pose.pose.position.z = 0;
+                    double theta = path_ptr->path_points[i * 4 + 2];
+                    pose.pose.orientation = tf::createQuaternionMsgFromYaw(theta);
+                    ros_path.poses.push_back(pose);
                 }
-            }
-
-        } else {
-            if (target_vel > 0.01) {
-                target_vel = std::max(0.0, target_vel - 0.5 * dt);
-                geometry_msgs::Twist twist;
-                twist.linear.x = target_vel;
-                twist.angular.z = 0.0;
-                g_cmd_vel_pub->publish(twist);
+                g_path_pub->publish(ros_path);
             }
         }
         ros::spinOnce();
@@ -221,12 +252,16 @@ int main(int argc, char* argv[]) {
         std::memset(g_map_mmap, 0, max_map_size);
     }
 
+    // TF 广播器: 发布 odom → base_link (使用 Gazebo 真实位姿)
+    tf::TransformBroadcaster tf_broadcaster;
+    g_tf_broadcaster = &tf_broadcaster;
+
     // Gazebo 传送服务
     ros::ServiceClient set_model_client = nh.serviceClient<gazebo_msgs::SetModelState>("/gazebo/set_model_state");
     g_set_model_client = &set_model_client;
 
     // Subscribers
-    ros::Subscriber odom_sub = nh.subscribe("/odom", 1, OdomCallback);
+    ros::Subscriber model_sub = nh.subscribe("/gazebo/model_states", 1, GazeboModelStatesCallback);
     ros::Subscriber goal_sub = nh.subscribe("/move_base_simple/goal", 1, GoalCallback);
     ros::Subscriber init_sub = nh.subscribe("/initialpose", 1, InitPoseCallback);
     ros::Subscriber map_sub = nh.subscribe("/map", 1, MapCallback);
@@ -236,8 +271,6 @@ int main(int argc, char* argv[]) {
     g_cmd_vel_pub = &cmd_vel_pub;
     ros::Publisher path_pub = nh.advertise<nav_msgs::Path>("/planned_path", 1);
     g_path_pub = &path_pub;
-
-    g_path_reader.Open(SHM_PLANNER_PATH);
 
     LOG(INFO) << "Gazebo Bridge ready. Entering control loop...";
 

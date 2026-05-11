@@ -41,11 +41,12 @@ private:
 
     /**
      * @brief 从最近点开始，沿路径向前找前视距离处的目标点
+     * @param state 车辆当前状态（用于测量距离）
      * @param closest_idx 最近点索引
      * @param lookahead 前视距离
      * @return 目标路径点
      */
-    PathPoint FindLookaheadPoint(size_t closest_idx, double lookahead) const;
+    PathPoint FindLookaheadPoint(const VehicleState& state, size_t closest_idx, double lookahead) const;
 
     TrackerConfig cfg_;
     Path path_;

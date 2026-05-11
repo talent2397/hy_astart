@@ -30,12 +30,12 @@ int main(int argc, char *argv[])
     // ---- 1. 初始化 Tracker ----
     TrackerConfig tracker_cfg;
     // TODO: 从 YAML 文件加载配置
-    tracker_cfg.lookahead_distance = 3.0;
-    tracker_cfg.target_velocity = 5.0;
+    tracker_cfg.lookahead_distance = 1.5;
+    tracker_cfg.target_velocity = 2.0;
     tracker_cfg.max_steering = 0.6;
     tracker_cfg.wheel_base = 2.0;
-    tracker_cfg.goal_tolerance_xy = 0.2;
-    tracker_cfg.kp_velocity = 0.5;
+    tracker_cfg.goal_tolerance_xy = 0.3;
+    tracker_cfg.kp_velocity = 1.5;
 
     PurePursuitTracker tracker;
     if (!tracker.Init(tracker_cfg))

@@ -2,25 +2,41 @@
 
 ## 一、当前项目状态
 
-### 1.1 已有功能
-- ✅ Hybrid A* 路径搜索（含 Reeds-Shepp 曲线）
-- ✅ 碰撞检测（矩形车辆模型）
-- ✅ RViz 可视化（路径/搜索树/车辆姿态）
-- ✅ 静态地图加载（map_server）
-- ✅ 基础线程池框架（未深入使用）
-- ✅ 多进程架构（3 进程: gazebo_bridge / planner / tracker）
-- ✅ 进程间通信机制（POSIX SHM + 消息队列）
-- ✅ Gazebo 仿真集成（diff_drive 车辆模型 + test.world）
-- ✅ Pure Pursuit 轨迹跟踪（接口化 ITracker, 自适应前视+曲率减速+转向平滑）
-- ✅ 实时车辆状态反馈（SHM vehicle_state, 100Hz）
-- ✅ 一键构建部署（rebuild_all.sh）
-- ✅ 全链路通: RViz → Planner → Tracker → Gazebo
+### 1.1 已有功能（截至 2026-05-11）
 
-### 1.2 缺失功能
+**框架层 (全部完成):**
+- ✅ Hybrid A* 路径搜索（含 Reeds-Shepp 曲线捷径）
+- ✅ 碰撞检测（矩形车辆模型, 2.0×1.0m）
+- ✅ 多进程架构（3 进程: gazebo_bridge / planner / tracker）
+- ✅ 进程间通信（POSIX SHM + 消息队列, sequence 同步）
+- ✅ Gazebo 仿真集成（4轮 diff_drive 车辆, 差速转弯已验证）
+- ✅ Pure Pursuit 轨迹跟踪（接口化 ITracker, 自适应前视+曲率减速+转向平滑）
+- ✅ 实时车辆状态反馈（SHM vehicle_state, Gazebo model_states 真实位姿）
+- ✅ 地图匹配（generate_map.py, Y轴翻转已修复, 与 Gazebo world 对齐）
+- ✅ 一键构建部署（rebuild_all.sh）
+- ✅ 全链路通: RViz → Planner → Tracker → Gazebo, **车能沿路径转弯**
+
+**可视化 & 交互:**
+- ✅ RViz 路径可视化（`/planned_path`, 绿色规划线）
+- ✅ RViz 初始位姿设置（`/initialpose` → Gazebo `set_model_state` 传送）
+- ✅ RViz 目标点设置（`/move_base_simple/goal`）
+- ✅ 静态地图加载（map_server）
+
+**Bridge 功能:**
+- ✅ Gazebo 真实位姿 → SHM vehicle_state（替代 diff_drive 里程计）
+- ✅ TF 发布: odom→base_link（Gazebo 真实位姿）
+- ✅ 速度反馈正确投影到车辆前进方向
+- ✅ cmd_vel 每帧发布（100Hz）
+- ✅ 路径转发到 ROS topic for RViz
+
+### 1.2 进行中
+- 🔄 Pure Pursuit 参数调优（前视距离/弯道速度/转向响应）
+
+### 1.3 缺失功能
 - ❌ MPC 控制器（当前使用 Pure Pursuit 替代）
+- ❌ 状态估计器 EKF
 - ❌ Unix Domain Socket 配置通道
 - ❌ YAML 配置加载
-- ❌ RViz 路径/搜索树可视化（新架构未发布 ROS 可视化 topic）
 - ❌ 动态障碍物处理
 - ❌ 在线重规划
 
@@ -842,3 +858,30 @@ SIGALRM         → 看门狗定时器
 - MPC 日志: `~/.hybrid_astar/mpc.log`
 - 系统日志: syslog
 - 共享内存状态: 可通过 `/proc/shm` 或自定义工具查看
+
+---
+
+## 附录 D: 项目当前阶段（2026-05-11）
+
+### 阶段判定
+**框架搭建完成，进入规控算法改进阶段。**
+
+### 已完成的实施路线图阶段
+- ✅ 阶段一：基础设施搭建（多进程 + SHM IPC + 消息队列）
+- ✅ 阶段二：Gazebo 仿真环境（4轮 diff_drive + test.world）
+- ✅ 阶段三：规划器重构（Hybrid A* 接口化 + RS 捷径）
+- 🔄 阶段四：MPC 控制器 → 当前使用 Pure Pursuit 替代，待替换
+- ❌ 阶段五：系统集成与调试（全链路已通，需持续优化）
+- ❌ 阶段六：优化与完善（动态障碍物、在线重规划等）
+
+### Bug 修复统计（共 25 个 Bug, 16 轮修复）
+| 类别 | 数量 | 典型问题 |
+|------|------|----------|
+| Gazebo/URDF | 8 | 差速不生效、轮轴方向、命名空间、rpy旋转、阻尼/扭矩 |
+| 坐标系 | 4 | 地图Y轴翻转、速度投影、TF发布、初始位姿传送 |
+| Pure Pursuit | 5 | 前视距离、转向滤波、速度反馈、丢帧、参数调优 |
+| IPC/SHM | 3 | Write覆盖sequence、死锁、Open时序 |
+| 地图 | 2 | negate翻转、Y轴翻转 |
+| 其他 | 3 | 二进制未部署、启动延迟、rviz配置 |
+
+详细记录见 `rizhi.md`。
